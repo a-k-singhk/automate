@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chat Interface</title>
+  <style>
+    /* ── Reset & Root ──────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f13;
+      --surface: #1a1a24;
+      --surface2: #242436;
+      --border: #2e2e44;
+      --primary: #7c5cfc;
+      --primary-glow: rgba(124, 92, 252, .25);
+      --accent: #40e0d0;
+      --danger: #ff4d6a;
+      --text: #e8e6f0;
+      --text-muted: #8888a8;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --radius: 12px;
+      --transition: .2s ease;
+    }
+
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ───────────────────────────────────────────────────── */
+    .sidebar {
+      width: 300px;
+      min-width: 300px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      gap: 20px;
+      overflow-y: auto;
+    }
+
+    .sidebar h2 {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      font-weight: 600;
+    }
+
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group label { font-size: .8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+
+    input, select {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-family: var(--font);
+      font-size: .9rem;
+      outline: none;
+      transition: border var(--transition);
+    }
+    input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
+
+    .btn {
+      border: none;
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-family: var(--font);
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--transition);
+      letter-spacing: .3px;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: #6b4ae8; transform: translateY(-1px); box-shadow: 0 4px 14px var(--primary-glow); }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-danger:hover { background: #e63a55; }
+    .btn-sm { padding: 6px 14px; font-size: .8rem; }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: .8rem;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-weight: 500;
+    }
+    .status-badge.connected { background: rgba(64, 224, 208, .12); color: var(--accent); }
+    .status-badge.disconnected { background: rgba(255, 77, 106, .12); color: var(--danger); }
+    .status-badge .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .status-badge.connected .dot { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+    .status-badge.disconnected .dot { background: var(--danger); }
+
+    .members-list { display: flex; flex-direction: column; gap: 4px; }
+    .member-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: var(--surface2);
+      font-size: .85rem;
+    }
+    .member-item .role-tag {
+      font-size: .7rem;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .role-tag.admin { background: rgba(124,92,252,.2); color: var(--primary); }
+    .role-tag.write { background: rgba(64,224,208,.15); color: var(--accent); }
+    .role-tag.read { background: rgba(255,77,106,.12); color: var(--danger); }
+
+    /* ── Admin Panel ───────────────────────────────────────────── */
+    .admin-panel {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .admin-panel h3 { font-size: .85rem; color: var(--primary); }
+    .admin-row { display: flex; gap: 6px; }
+    .admin-row input, .admin-row select { flex: 1; padding: 8px; font-size: .8rem; }
+
+    /* ── Chat Area ─────────────────────────────────────────────── */
+    .chat-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chat-header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--surface);
+    }
+    .chat-header .room-name { font-size: 1.15rem; }
+    .chat-header .room-id { color: var(--text-muted); font-size: .8rem; font-weight: 400; }
+
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .message {
+      max-width: 70%;
+      padding: 12px 16px;
+      border-radius: 16px;
+      font-size: .9rem;
+      line-height: 1.45;
+      animation: fadeIn .25s ease;
+      position: relative;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    .message.own {
+      align-self: flex-end;
+      background: var(--primary);
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+    .message.other {
+      align-self: flex-start;
+      background: var(--surface2);
+      border-bottom-left-radius: 4px;
+    }
+    .message .sender {
+      font-size: .75rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+      opacity: .7;
+    }
+    .message .meta {
+      font-size: .7rem;
+      opacity: .5;
+      margin-top: 4px;
+      text-align: right;
+    }
+    .message .type-badge {
+      display: inline-block;
+      font-size: .65rem;
+      padding: 1px 6px;
+      border-radius: 6px;
+      background: rgba(255,255,255,.15);
+      margin-right: 6px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+    .message.system {
+      align-self: center;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: .8rem;
+      font-style: italic;
+      max-width: 100%;
+      padding: 4px 0;
+    }
+    .message.error {
+      align-self: center;
+      background: rgba(255,77,106,.1);
+      color: var(--danger);
+      font-size: .8rem;
+      max-width: 100%;
+      border-radius: 8px;
+    }
+
+    .typing-indicator {
+      padding: 0 24px 8px;
+      font-size: .8rem;
+      color: var(--accent);
+      min-height: 22px;
+      font-style: italic;
+    }
+
+    /* ── Input Bar ─────────────────────────────────────────────── */
+    .input-bar {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      background: var(--surface);
+    }
+    .input-bar input {
+      flex: 1;
+      padding: 12px 18px;
+      border-radius: 24px;
+    }
+    .input-bar .btn { border-radius: 24px; padding: 12px 28px; }
+
+    /* ── Scrollbar ─────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── Disabled state ────────────────────────────────────────── */
+    .disabled { opacity: .45; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <!-- ── Sidebar ──────────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <h2>🔌 Connect</h2>
+
+    <div class="form-group">
+      <label>User ID</label>
+      <select id="userId">
+        <option value="alice">alice (admin)</option>
+        <option value="bob">bob (write)</option>
+        <option value="charlie">charlie (read)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Room ID</label>
+      <select id="roomId">
+        <option value="room1">room1</option>
+        <option value="room2">room2</option>
+      </select>
+    </div>
+
+    <button class="btn btn-primary" id="connectBtn">Connect</button>
+    <button class="btn btn-danger" id="disconnectBtn" style="display:none">Disconnect</button>
+
+    <div id="statusBadge" class="status-badge disconnected">
+      <span class="dot"></span> Disconnected
+    </div>
+
+    <h2>👥 Members</h2>
+    <div id="membersList" class="members-list">
+      <span style="color:var(--text-muted);font-size:.85rem;">Connect to see members</span>
+    </div>
+
+    <!-- Admin panel – visible only to admins -->
+    <div id="adminPanel" class="admin-panel" style="display:none">
+      <h3>⚡ Admin: Change Role</h3>
+      <div class="admin-row">
+        <input id="targetUser" placeholder="userId" />
+        <select id="newRole">
+          <option value="admin">admin</option>
+          <option value="write">write</option>
+          <option value="read">read</option>
+        </select>
+      </div>
+      <button class="btn btn-primary btn-sm" id="changeRoleBtn">Apply</button>
+    </div>
+  </aside>
+
+  <!-- ── Chat Area ────────────────────────────────────────────── -->
+  <main class="chat-area">
+    <header class="chat-header">
+      <span class="room-name" id="chatRoomName">Select a room</span>
+      <span class="room-id" id="chatRoomId"></span>
+    </header>
+
+    <div class="messages" id="messages"></div>
+    <div class="typing-indicator" id="typingIndicator"></div>
+
+    <div class="input-bar disabled" id="inputBar">
+      <input type="text" id="messageInput" placeholder="Type a message…" autocomplete="off" />
+      <button class="btn btn-primary" id="sendBtn">Send</button>
+    </div>
+  </main>
+
+  <script>
+    // ── DOM refs ──────────────────────────────────────────────────
+    const $userId       = document.getElementById('userId');
+    const $roomId       = document.getElementById('roomId');
+    const $connectBtn   = document.getElementById('connectBtn');
+    const $disconnectBtn= document.getElementById('disconnectBtn');
+    const $statusBadge  = document.getElementById('statusBadge');
+    const $membersList  = document.getElementById('membersList');
+    const $adminPanel   = document.getElementById('adminPanel');
+    const $targetUser   = document.getElementById('targetUser');
+    const $newRole      = document.getElementById('newRole');
+    const $changeRoleBtn= document.getElementById('changeRoleBtn');
+    const $chatRoomName = document.getElementById('chatRoomName');
+    const $chatRoomId   = document.getElementById('chatRoomId');
+    const $messages     = document.getElementById('messages');
+    const $typingInd    = document.getElementById('typingIndicator');
+    const $inputBar     = document.getElementById('inputBar');
+    const $msgInput     = document.getElementById('messageInput');
+    const $sendBtn      = document.getElementById('sendBtn');
+
+    let ws = null;
+    let currentUser = '';
+    let currentRoom = '';
+    let currentRole = '';
+    let typingTimers = {};  // userId → timeoutId
+
+    // ── Connect ──────────────────────────────────────────────────
+    $connectBtn.addEventListener('click', () => {
+      if (ws) return;
+      currentUser = $userId.value;
+      currentRoom = $roomId.value;
+
+      const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+      ws = new WebSocket(`${protocol}://${location.host}?userId=${currentUser}&roomId=${currentRoom}`);
+
+      ws.addEventListener('open', () => {
+        setStatus(true);
+        $connectBtn.style.display = 'none';
+        $disconnectBtn.style.display = '';
+        $inputBar.classList.remove('disabled');
+        $chatRoomName.textContent = currentRoom;
+        $chatRoomId.textContent = `connected as ${currentUser}`;
+      });
+
+      ws.addEventListener('message', (evt) => {
+        const msg = JSON.parse(evt.data);
+        handleIncoming(msg);
+      });
+
+      ws.addEventListener('close', () => {
+        cleanup();
+      });
+
+      ws.addEventListener('error', () => {
+        appendMessage('error', null, 'Connection error');
+      });
+    });
+
+    $disconnectBtn.addEventListener('click', () => {
+      if (ws) ws.close();
+    });
+
+    function cleanup() {
+      ws = null;
+      setStatus(false);
+      $connectBtn.style.display = '';
+      $disconnectBtn.style.display = 'none';
+      $inputBar.classList.add('disabled');
+      $adminPanel.style.display = 'none';
+      currentRole = '';
+    }
+
+    function setStatus(connected) {
+      $statusBadge.className = 'status-badge ' + (connected ? 'connected' : 'disconnected');
+      $statusBadge.innerHTML = `<span class="dot"></span> ${connected ? 'Connected' : 'Disconnected'}`;
+    }
+
+    // ── Incoming Messages ────────────────────────────────────────
+    function handleIncoming(msg) {
+      switch (msg.type) {
+        case 'system':
+          appendMessage('system', null, msg.message);
+          if (msg.role) {
+            currentRole = msg.role;
+            $adminPanel.style.display = currentRole === 'admin' ? '' : 'none';
+          }
+          if (msg.members) renderMembers(msg.members);
+          break;
+
+        case 'text':
+          appendMessage(msg.senderId === currentUser ? 'own' : 'other', msg.senderId,
+            msg.content.text, msg.timestamp, 'text');
+          break;
+
+        case 'audio':
+          appendMessage(msg.senderId === currentUser ? 'own' : 'other', msg.senderId,
+            `🎙️ Audio (${msg.content.duration}s)`, msg.timestamp, 'audio');
+          break;
+
+        case 'image':
+          appendMessage(msg.senderId === currentUser ? 'own' : 'other', msg.senderId,
+            `🖼️ Image${msg.content.caption ? ': ' + msg.content.caption : ''}`, msg.timestamp, 'image');
+          break;
+
+        case 'document':
+          appendMessage(msg.senderId === currentUser ? 'own' : 'other', msg.senderId,
+            `📄 ${msg.content.filename} (${formatBytes(msg.content.size)})`, msg.timestamp, 'document');
+          break;
+
+        case 'typing':
+          showTyping(msg.userId, msg.isTyping);
+          break;
+
+        case 'role_changed':
+          appendMessage('system', null,
+            `🔄 ${msg.changedBy} changed ${msg.targetUserId}'s role to ${msg.newRole}`);
+          // Update own role if it changed
+          if (msg.targetUserId === currentUser) {
+            currentRole = msg.newRole;
+            $adminPanel.style.display = currentRole === 'admin' ? '' : 'none';
+            appendMessage('system', null, `Your role is now "${msg.newRole}"`);
+          }
+          // Refresh members
+          fetchMembers();
+          break;
+
+        case 'error':
+          appendMessage('error', null, `⚠️ ${msg.message}`);
+          break;
+      }
+    }
+
+    // ── Render Helpers ───────────────────────────────────────────
+    function appendMessage(cls, sender, text, timestamp, typeBadge) {
+      const div = document.createElement('div');
+      div.className = 'message ' + cls;
+
+      let html = '';
+      if (sender && cls === 'other') html += `<div class="sender">${sender}</div>`;
+      if (typeBadge && typeBadge !== 'text') html += `<span class="type-badge">${typeBadge}</span>`;
+      html += escapeHtml(text);
+      if (timestamp) html += `<div class="meta">${new Date(timestamp).toLocaleTimeString()}</div>`;
+
+      div.innerHTML = html;
+      $messages.appendChild(div);
+      $messages.scrollTop = $messages.scrollHeight;
+    }
+
+    function escapeHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    function renderMembers(members) {
+      $membersList.innerHTML = '';
+      members.forEach((uid) => {
+        fetchMemberRole(uid);
+      });
+    }
+
+    async function fetchMembers() {
+      try {
+        const res = await fetch(`/api/rooms/${currentRoom}`);
+        const data = await res.json();
+        $membersList.innerHTML = '';
+        data.members.forEach((m) => {
+          addMemberEl(m.userId, m.role);
+        });
+      } catch { /* ignore */ }
+    }
+
+    async function fetchMemberRole(uid) {
+      try {
+        const res = await fetch(`/api/rooms/${currentRoom}`);
+        const data = await res.json();
+        const member = data.members.find((m) => m.userId === uid);
+        addMemberEl(uid, member ? member.role : '?');
+      } catch {
+        addMemberEl(uid, '?');
+      }
+    }
+
+    function addMemberEl(uid, role) {
+      const el = document.createElement('div');
+      el.className = 'member-item';
+      el.innerHTML = `<span>${escapeHtml(uid)}</span><span class="role-tag ${role}">${role}</span>`;
+      $membersList.appendChild(el);
+    }
+
+    function formatBytes(b) {
+      if (b < 1024) return b + ' B';
+      if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+      return (b / 1048576).toFixed(1) + ' MB';
+    }
+
+    // ── Typing ───────────────────────────────────────────────────
+    let typingSent = false;
+    let typingTimeout = null;
+
+    $msgInput.addEventListener('input', () => {
+      if (!ws || !typingSent) {
+        if (ws) ws.send(JSON.stringify({ type: 'typing', roomId: currentRoom, userId: currentUser, isTyping: true }));
+        typingSent = true;
+      }
+      clearTimeout(typingTimeout);
+      typingTimeout = setTimeout(() => {
+        if (ws) ws.send(JSON.stringify({ type: 'typing', roomId: currentRoom, userId: currentUser, isTyping: false }));
+        typingSent = false;
+      }, 2000);
+    });
+
+    function showTyping(userId, isTyping) {
+      if (isTyping) {
+        typingTimers[userId] = setTimeout(() => {
+          delete typingTimers[userId];
+          updateTypingUI();
+        }, 3000);
+        updateTypingUI();
+      } else {
+        clearTimeout(typingTimers[userId]);
+        delete typingTimers[userId];
+        updateTypingUI();
+      }
+    }
+
+    function updateTypingUI() {
+      const typers = Object.keys(typingTimers);
+      if (typers.length === 0) {
+        $typingInd.textContent = '';
+      } else if (typers.length === 1) {
+        $typingInd.textContent = `${typers[0]} is typing…`;
+      } else {
+        $typingInd.textContent = `${typers.join(', ')} are typing…`;
+      }
+    }
+
+    // ── Send ─────────────────────────────────────────────────────
+    function sendText() {
+      const text = $msgInput.value.trim();
+      if (!text || !ws) return;
+
+      ws.send(JSON.stringify({
+        type: 'text',
+        content: { text },
+      }));
+      $msgInput.value = '';
+
+      // Stop typing indicator
+      clearTimeout(typingTimeout);
+      if (typingSent) {
+        ws.send(JSON.stringify({ type: 'typing', roomId: currentRoom, userId: currentUser, isTyping: false }));
+        typingSent = false;
+      }
+    }
+
+    $sendBtn.addEventListener('click', sendText);
+    $msgInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendText();
+    });
+
+    // ── Change Role (admin) ──────────────────────────────────────
+    $changeRoleBtn.addEventListener('click', () => {
+      const target = $targetUser.value.trim();
+      const role = $newRole.value;
+      if (!target || !ws) return;
+
+      ws.send(JSON.stringify({
+        type: 'change_role',
+        targetUserId: target,
+        newRole: role,
+      }));
+      $targetUser.value = '';
+    });
+  </script>
+</body>
+</html>
