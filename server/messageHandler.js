@@ -18,13 +18,8 @@ const roomManager = require('./roomManager');
 
 /**
  * Process a single parsed message from a WebSocket client.
- *
- * @param {WebSocket} ws       – the sender's socket
- * @param {object}    msg      – parsed JSON payload
- * @param {string}    userId   – authenticated sender
- * @param {string}    roomId   – room the sender belongs to
  */
-function handle(ws, msg, userId, roomId) {
+async function handle(ws, msg, userId, roomId) {  // ← async added
     const { type } = msg;
 
     switch (type) {
@@ -40,7 +35,7 @@ function handle(ws, msg, userId, roomId) {
             break;
 
         case 'change_role':
-            handleChangeRole(ws, msg, userId, roomId);
+            await handleChangeRole(ws, msg, userId, roomId);  // ← await added
             break;
 
         default:
@@ -51,12 +46,10 @@ function handle(ws, msg, userId, roomId) {
 // ── Content Messages ────────────────────────────────────────────────────────────
 
 function handleContent(ws, msg, userId, roomId) {
-    // RBAC check
     if (!rbac.canSend(roomId, userId)) {
         return sendError(ws, 'Permission denied');
     }
 
-    // Validate per type
     const content = msg.content;
     if (!content) return sendError(ws, 'Missing "content" field');
 
@@ -84,7 +77,6 @@ function handleContent(ws, msg, userId, roomId) {
             break;
     }
 
-    // Build outgoing envelope
     const envelope = {
         messageId: randomUUID(),
         senderId: userId,
@@ -94,27 +86,23 @@ function handleContent(ws, msg, userId, roomId) {
         content,
     };
 
-    // Broadcast to entire room (including sender so their UI confirms delivery)
     roomManager.broadcast(roomId, envelope);
 }
 
 // ── Typing Indicator ────────────────────────────────────────────────────────────
 
 function handleTyping(_ws, msg, userId, roomId) {
-    const payload = {
+    roomManager.broadcast(roomId, {
         type: 'typing',
         roomId,
         userId,
         isTyping: !!msg.isTyping,
-    };
-
-    // Broadcast to everyone EXCEPT the sender
-    roomManager.broadcast(roomId, payload, userId);
+    }, userId);  // exclude sender
 }
 
 // ── Role Change (Admin Only) ────────────────────────────────────────────────────
 
-function handleChangeRole(ws, msg, userId, roomId) {
+async function handleChangeRole(ws, msg, userId, roomId) {  // ← async added
     if (!rbac.canChangeRole(roomId, userId)) {
         return sendError(ws, 'Permission denied');
     }
@@ -125,20 +113,19 @@ function handleChangeRole(ws, msg, userId, roomId) {
     if (!rbac.isValidRole(newRole)) return sendError(ws, `Invalid role: "${newRole}". Must be one of: ${roomManager.VALID_ROLES.join(', ')}`);
     if (targetUserId === userId) return sendError(ws, 'Cannot change your own role');
 
-    const success = roomManager.setRole(roomId, targetUserId, newRole);
-    if (!success) return sendError(ws, 'Failed to change role');
+    // ← await here — without this, DB write was being skipped silently
+    const success = await roomManager.setRole(roomId, targetUserId, newRole);
 
-    // Notify the entire room
-    const notification = {
+    if (!success) return sendError(ws, 'Failed to change role — user may not exist in this room');
+
+    roomManager.broadcast(roomId, {
         type: 'role_changed',
         roomId,
         targetUserId,
         newRole,
         changedBy: userId,
         timestamp: new Date().toISOString(),
-    };
-
-    roomManager.broadcast(roomId, notification);
+    });
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────────
